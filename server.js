@@ -1,6 +1,8 @@
+// dependencies
 const mysql = require('mysql');
 const inquirer = require('inquirer');
 
+// establishing mysql connection information
 const connection = mysql.createConnection({
   host: 'localhost',
 
@@ -12,6 +14,7 @@ const connection = mysql.createConnection({
   database: 'employees',
 });
 
+// loads the main menu of prompts for the application
 const loadPrompts = () => {
   inquirer
       .prompt([
@@ -36,7 +39,7 @@ const loadPrompts = () => {
           },
       ])
       .then((answer) => {
-        console.log(answer.prompts);
+        // evaluating user choice, calling appropriate function
         if (answer.prompts === "View all employees") {
           getAllEmployees();
         } else if (answer.prompts === "View all employees by department") {
@@ -65,14 +68,18 @@ const loadPrompts = () => {
   })
 };
 
+// displays all employees
 const getAllEmployees = () => {
+  // uses the employee's role id and the role's department id to create one table where all information can be viewed
   connection.query('SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS "department", employee.manager_id FROM employee INNER JOIN role ON role.id = employee.role_id INNER JOIN department ON department.id = role.department_id', (err, res) => {
     if (err) throw err;
     console.table(res);
+    // returns user to main menu
     loadPrompts();
   });
 };
 
+// displays all employees by selected department
 const getEmployeesByDept = () => {
   inquirer
     .prompt({
@@ -87,6 +94,7 @@ const getEmployeesByDept = () => {
       ]
     })
     .then((answer) => {
+      // shows the same information as getAllEmployees but includes a where ? clause that filters results by department
       connection.query('SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS "department", employee.manager_id FROM employee INNER JOIN role ON role.id = employee.role_id INNER JOIN department ON department.id = role.department_id WHERE ?', { name: answer.department }, (err, res) => {
         if (err) throw err;
         console.table(res);
@@ -95,13 +103,19 @@ const getEmployeesByDept = () => {
     });
 };
 
+// adds a new employee
 const addEmployee = () => {
+  // empty arrays to store data from mysql query - used to populate inquirer choices below
   let managerInfo = [];
   let managerChoice = [];
   let roleChoice = [];
 
+  // getting managers to present user with a list of managers to assign the new employee to
   connection.query('SELECT employee.first_name, employee.last_name, employee.id FROM employee WHERE role_id = ?', [1], (err, res) => {
     if (err) throw err;
+
+    // loops through query results, joins first and last name as single string, pushes to array to be presented as inquirer choice below
+    // managerobj is used to store the manager id so that the manager id can later be assigned to the new employee
     res.forEach(value => {
       managerName = `${value.first_name} ${value.last_name}`
       managerChoice.push(managerName);
@@ -113,11 +127,14 @@ const addEmployee = () => {
       managerInfo.push(managerObj);
     });
 
+    // getting role title and id from db to present as choices for inquirer
     connection.query('SELECT role.title, role.id FROM role', (err, res) => {
       if (err) throw err;
+
       res.forEach(value => {
         roleChoice.push(value.title);
       });
+
       inquirer
       .prompt([
         {
@@ -144,18 +161,23 @@ const addEmployee = () => {
         },
       ])
       .then((answer) => {  
+
+        // checks for a strict match between the user selected manager and the manager information queried with mysql - if there is a match, the manager id stored to a variable to be assigned to the new employee
         const splitManager = answer.manager.split(' ');
         for (i = 0; i < managerInfo.length; i++) {
           if (splitManager[0] === managerInfo[i].first_name && splitManager[1] === managerInfo[i].last_name) {
             foundManagerId = managerInfo[i].id;
           }
         }
+
+        // checks for a match between user chosen role and all possible role titles returned from query - pulls out the matching id and assigns to variable to be assigned to new employee
         res.forEach(value => {
           if (answer.role === value.title) {
             foundRoleId = value.id;
           }
         });
 
+        // inserting new employee with all the info generated above, including role id and manager id's 
         connection.query(
           'INSERT INTO employee SET ?',
             {
@@ -176,10 +198,11 @@ const addEmployee = () => {
   });
 };
 
+// removes an employee
 const remEmployee = () => {
   let remChoices = [];
 
-  // finding all employee first and last names from mysql
+  // finding all employee first and last names from mysql to be presented as inquirer choices
   connection.query("SELECT employee.first_name, employee.last_name FROM employee", (err, res) => {
     if (err) throw err;
       res.forEach(choice => {
@@ -208,12 +231,13 @@ const remEmployee = () => {
   });
 };
 
+// updates employee's role
 const updEmployeeRole = () => {
   let updEmplChoices = [];
   let roleChoices = [];
   let roleInfo = [];
 
-  // queries first and last name from employee table
+  // queries first and last name from employee table to present them as choices within inquirer
   connection.query("SELECT employee.first_name, employee.last_name FROM employee", (err, res) => {
     if (err) throw err; 
 
@@ -223,8 +247,10 @@ const updEmployeeRole = () => {
     });
   });
 
+  // finding role title for inquirer choices and role id for updating employee role id later
   connection.query("SELECT role.title, role.id FROM role", (err, res) => {
     if (err) throw err;
+
     res.forEach(role => {
       let roleObj = {
         title: role.title,
@@ -251,12 +277,14 @@ const updEmployeeRole = () => {
       .then((answer) => {
         let chosenName = answer.employeeUpd.split(' ');
 
+        // comparing user choice to all possible roles from query - if match, returns the id for the selected role
         res.forEach(value => {
           if (answer.roleUpd === value.title) {
             newRoleId = value.id;
           }
         });
 
+        // updates the employee's role id in the db where there is a first and last name match - would be much safer to update employee based on employee id instead of by name, in case there are employees with identical names
         connection.query("UPDATE employee SET role_id = ? WHERE first_name = ? AND last_name = ?", [newRoleId, chosenName[0], chosenName[1]], (err, res) => {
           if (err) throw err; 
             console.log(`\n-----\n${chosenName.join(' ')}'s role has been updated.\n-----\n`)
@@ -266,6 +294,7 @@ const updEmployeeRole = () => {
   });
 };
 
+// shows all roles
 const getAllRoles = () => {
   connection.query('SELECT role.title, role.salary, role.department_id FROM role', (err, res) => {
     if (err) throw err;
@@ -274,13 +303,14 @@ const getAllRoles = () => {
   });
 };
 
+// adds a role
 const addRole = () => {
   let roleChoices = [];
 
+  // finding department name and id's from db to provide user with the choice of what department to insert the role into
   connection.query("SELECT department.name, department.id FROM department", (err, res) => {
-    if(err) {
-      throw err;
-    } else {
+    if (err) throw err
+
       res.forEach(value => {
         roleChoices.push(value.name);
       });
@@ -305,12 +335,13 @@ const addRole = () => {
         },
       ])
       .then((answer) => {
+        // if the answer matches a department from the db, grabs the department id for assignment to new role in db
         res.forEach(value => {
           if (answer.department === value.name) {
             departmentId = value.id;
           }
         });
-
+        // adds role to db
         connection.query(
           'INSERT INTO role SET ?',
             {
@@ -326,13 +357,14 @@ const addRole = () => {
           }
         );
       });
-    }
   });
 };
 
+// removes a role
 const remRole = () => {
   let remRoleChoices = [];
 
+  // finds all roles to present as inquirer choices
   connection.query("SELECT role.title FROM role", (err, res) => {
     if (err) throw err;
       res.forEach(choice => {
@@ -348,7 +380,7 @@ const remRole = () => {
         }
       ])
         .then((answer) => {
-          // removes employee from db where there is a name match - it would probably be better (less error prone) to delete by id in case there are employees with identical names
+          // removes role based on title selected from inquirer
           connection.query(`DELETE FROM role WHERE role.title = ?`, [answer.roleRemove] , (err, res) => {
             if (err) throw err;
             console.log(`\n-----\n${answer.roleRemove} has been removed.\n-----\n`);
@@ -358,6 +390,7 @@ const remRole = () => {
   });
 };
 
+// displays all departments
 const getAllDept = () => {
   connection.query('SELECT department.name FROM department', (err, res) => {
     if (err) throw err;
@@ -366,6 +399,7 @@ const getAllDept = () => {
   });
 };
 
+// adds new department
 const addDept = () => {
   inquirer.prompt([
     {
@@ -390,9 +424,11 @@ const addDept = () => {
   });
 };
 
+// removes existing department
 const remDept = () => {
   let deptChoices = [];
 
+  // used to display choices for which department to remove - will only return existing departments
   connection.query("SELECT department.name FROM department", (err, res) => {
     if (err) throw err;
       res.forEach(choice => {
@@ -408,6 +444,7 @@ const remDept = () => {
         }
       ])
         .then((answer) => {
+          // deletes department based on user choice
           connection.query(`DELETE FROM department WHERE department.name = ?`, [answer.deptRemove] , (err, res) => {
             if (err) throw err;
             console.log(`\n-----\n${answer.deptRemove} and its employees have been removed.\n-----\n`);
@@ -417,10 +454,12 @@ const remDept = () => {
   });
 };
 
+// exits application
 const quit = () => {
   process.exit();
 }
 
+// establishes connection loads prompts to begin application
 connection.connect((err) => {
     if (err) throw err;
     console.log(`Connected as id ${connection.threadId}`);
