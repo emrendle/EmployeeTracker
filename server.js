@@ -14,7 +14,6 @@ const connection = mysql.createConnection({
 
 const loadPrompts = () => {
   inquirer
-  // get the info from user to create an auction - passing this into the connection query to add to the db
       .prompt([
           {
               name: 'prompts',
@@ -94,9 +93,8 @@ const getEmployeesByDept = () => {
         loadPrompts();
       });
     });
-}
+};
 
-// needs to be changed to dynamically load options
 const addEmployee = () => {
   let managerInfo = [];
   let managerChoice = [];
@@ -169,14 +167,14 @@ const addEmployee = () => {
   
           (err, res) => {
             if (err) throw err;
-            console.log(`${answer.firstName} ${answer.lastName} has been added.`);
+            console.log(`\n-----\n${answer.firstName} ${answer.lastName} has been added.\n-----\n`);
             loadPrompts();
             }
           );
         });
       });
   });
-}
+};
 
 const remEmployee = () => {
   let remChoices = [];
@@ -203,12 +201,12 @@ const remEmployee = () => {
           // removes employee from db where there is a name match - it would probably be better (less error prone) to delete by id in case there are employees with identical names
           connection.query(`DELETE FROM employee WHERE first_name = ? AND last_name = ?`, [splitAnswer[0], splitAnswer[1]] , (err, res) => {
             if (err) throw err;
-            console.log(`${remFirstName} ${remLastName} has been removed.`);
+            console.log(`\n-----\n${answer.employeeRemove} has been removed.\n-----\n`);
             loadPrompts();
           });
       });
   });
-}
+};
 
 const updEmployeeRole = () => {
   let updEmplChoices = [];
@@ -261,12 +259,12 @@ const updEmployeeRole = () => {
 
         connection.query("UPDATE employee SET role_id = ? WHERE first_name = ? AND last_name = ?", [newRoleId, chosenName[0], chosenName[1]], (err, res) => {
           if (err) throw err; 
-            console.log(`${chosenName.join(' ')}'s role has been updated.`)
+            console.log(`\n-----\n${chosenName.join(' ')}'s role has been updated.\n-----\n`)
             loadPrompts();
         });
     });
   });
-}
+};
 
 const getAllRoles = () => {
   connection.query('SELECT role.title, role.salary, role.department_id FROM role', (err, res) => {
@@ -274,7 +272,7 @@ const getAllRoles = () => {
     console.table(res);
     loadPrompts();
   });
-}
+};
 
 const addRole = () => {
   let roleChoices = [];
@@ -323,13 +321,104 @@ const addRole = () => {
         
           (err, res) => {
             if (err) throw err;
-            console.log(`${answer.roleTitle} has been added as a role.`);
+            console.log(`\n-----\nA new role has been added: ${answer.roleTitle}.\n-----\n`);
             loadPrompts();
           }
         );
       });
     }
   });
+};
+
+const remRole = () => {
+  let remRoleChoices = [];
+
+  connection.query("SELECT role.title FROM role", (err, res) => {
+    if (err) throw err;
+      res.forEach(choice => {
+        remRoleChoices.push(choice.title);
+      });
+  
+      inquirer.prompt([
+        {
+          name: "roleRemove",
+          type: "rawlist",
+          message: "Which role would you like to remove?",
+          choices: remRoleChoices,
+        }
+      ])
+        .then((answer) => {
+          // removes employee from db where there is a name match - it would probably be better (less error prone) to delete by id in case there are employees with identical names
+          connection.query(`DELETE FROM role WHERE role.title = ?`, [answer.roleRemove] , (err, res) => {
+            if (err) throw err;
+            console.log(`\n-----\n${answer.roleRemove} has been removed.\n-----\n`);
+            loadPrompts();
+          });
+      });
+  });
+};
+
+const getAllDept = () => {
+  connection.query('SELECT department.name FROM department', (err, res) => {
+    if (err) throw err;
+    console.table(res);
+    loadPrompts();
+  });
+};
+
+const addDept = () => {
+  inquirer.prompt([
+    {
+      name: "deptName",
+      type: "input",
+      message: "What is the name of the new department?",
+    }
+  ])
+    .then((answer) => {
+      connection.query(
+        'INSERT INTO department SET ?',
+          {
+          name: answer.deptName,
+          },
+      
+        (err, res) => {
+          if (err) throw err;
+          console.log(`\n-----\nA new department has been added: ${answer.deptName}.\n-----\n`);
+          loadPrompts();
+        }
+      );
+  });
+};
+
+const remDept = () => {
+  let deptChoices = [];
+
+  connection.query("SELECT department.name FROM department", (err, res) => {
+    if (err) throw err;
+      res.forEach(choice => {
+        deptChoices.push(choice.name);
+      });
+  
+      inquirer.prompt([
+        {
+          name: "deptRemove",
+          type: "rawlist",
+          message: "Which department would you like to remove?",
+          choices: deptChoices,
+        }
+      ])
+        .then((answer) => {
+          connection.query(`DELETE FROM department WHERE department.name = ?`, [answer.deptRemove] , (err, res) => {
+            if (err) throw err;
+            console.log(`\n-----\n${answer.deptRemove} and its employees have been removed.\n-----\n`);
+            loadPrompts();
+          });
+      });
+  });
+};
+
+const quit = () => {
+  process.exit();
 }
 
 connection.connect((err) => {
